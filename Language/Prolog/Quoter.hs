@@ -2,7 +2,6 @@
 module Language.Prolog.Quoter (tr, pr) where
 import Text.Parsec hiding ((<|>), many)
 import Language.Haskell.TH.Quote
-import Language.Haskell.TH hiding (Pred)
 import Language.Prolog.DataTypes
 import Control.Applicative hiding (empty)
 import Prelude hiding (pred)

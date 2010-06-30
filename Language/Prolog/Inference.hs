@@ -5,11 +5,9 @@ import Data.Map hiding (map, filter, null)
 import Prelude hiding (map, lookup)
 import Language.Prolog.Unification (unify)
 import Language.Prolog.DataTypes
-import Language.Prolog.Quoter
 import Data.Maybe
 import Data.Generics
 import Data.List (sort, group, intersect)
-import Debug.Trace
 
 map :: (Functor f) => (a -> b) -> f a -> f b
 map = fmap
