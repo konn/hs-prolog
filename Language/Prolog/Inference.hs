@@ -8,6 +8,7 @@ import Language.Prolog.DataTypes
 import Data.Maybe
 import Data.Generics
 import Data.List (sort, group, intersect)
+import Control.Applicative hiding (empty)
 
 map :: (Functor f) => (a -> b) -> f a -> f b
 map = fmap
@@ -31,14 +32,10 @@ prove pred = do
     False -> mapM_ (prove <=< rewrite) preds
 
 rewrite :: forall a. (Data a) => a -> InfMachine a
-rewrite pred  = do
-  dic <- get
-  let f v@(Val a@(Any _)) = maybe (return v) rewrite $ lookup a dic
-      f a         = return a
-  everywhereM (mkM f) pred 
+rewrite s = rewriteBy s <$> get
 
 vars :: forall a. (Data a) => a -> [Val]
-vars = map head . group . sort . listify (\a->case a of{Any _-> True; _ -> False})
+vars = map head . group . sort . listify (\a->case a of{Any{} -> True; _ -> False})
 
 rename :: Term -> Pred -> InfMachine Term
 rename from env = do
@@ -46,9 +43,9 @@ rename from env = do
   let dups = vars from `intersect` (vars env ++ ks)
       transed = flip everywhere from (mkT  $ \an ->
         case an of
-          Any x | (Any x) `elem` dups -> Any (x++"1")
-                | otherwise           -> Any x
-          t                           -> t
+          Any x n | (Any x n) `elem` dups -> Any x (n+1)
+                  | otherwise             -> Any x n
+          t                               -> t
                    )
   case dups of
     [] -> return from

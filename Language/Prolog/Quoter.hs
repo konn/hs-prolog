@@ -1,35 +1,66 @@
-{-# LANGUAGE RankNTypes #-}
-module Language.Prolog.Quoter (tr, pr) where
+{-# LANGUAGE RankNTypes, FlexibleContexts #-}
+module Language.Prolog.Quoter (pr, tr, term, pred, program) where
 import Text.Parsec hiding ((<|>), many)
 import Language.Haskell.TH.Quote
 import Language.Prolog.DataTypes
 import Control.Applicative hiding (empty)
 import Prelude hiding (pred)
+import Language.Haskell.TH hiding (Pred)
+import Data.Generics
+
+spcs :: Monad m => ParsecT String u m ()
+spcs = spaces <|> (string "%" *> manyTill anyToken newline *> return ())
 
 lexeme :: Monad m => ParsecT String u m a -> ParsecT String u m a 
-lexeme p = p <* spaces
+lexeme p = p <* spcs
 symbol str = lexeme $ string str
 
-ident_tail = lexeme $ many alphaNum
+ident_tail, ident :: Monad m => ParsecT String u m String
+ident_tail = lexeme $ many (alphaNum<|>char '_')
 ident = ((++) <$> count 1 lower <*> ident_tail)
 
-variable = Any <$> ((++) <$> count 1 upper <*> ident_tail)
+variable, value, wild :: Monad m => ParsecT String u m Val
+variable = flip Any 0 <$> ((++) <$> count 1 upper <*> ident_tail)
 value = Exists <$> ident
+wild  = Wild <$ symbol "_"
 
-pred = try (App <$> ident <*> between (symbol "(") (symbol ")") (pred `sepBy` symbol ","))
-   <|> Val <$> (variable <|> value)
+number :: Monad m => ParsecT String u m Val
+number = Exists <$> many1 digit
 
+list :: Monad m => ParsecT String u m Pred
+list = between (symbol "[") (symbol "]") (
+      try ( do
+        elms <- preds
+        symbol "|"
+        tls <- pred
+        return $ foldr (\a b -> App "cons" [a,b]) tls elms)
+  <|> foldr (\a b->App "cons" [a,b]) (Val $ Exists "[]") <$> preds
+ )
+
+preds :: Monad m => ParsecT String u m [Pred]
+preds = pred `sepBy` (symbol "," )
+
+pred :: Monad m => ParsecT String u m Pred
+pred = try (App <$> ident <* (symbol "(") <*> preds <* (symbol ")"))
+   <|> Val <$> (variable <|> value <|> number <|> wild)
+   <|> list
+
+term :: Monad m => ParsecT String u m Term
 term = (try ( (:-) <$> pred <* symbol ":-" <*> sepBy pred (symbol ",") )
         <|> flip (:-) [] <$> pred) <* symbol "."
 
-program = sepBy term newline
+program :: Monad m => ParsecT String u m [Term]
+program = term `sepBy` spcs
 
-pr = QuasiQuoter (parserToQ pred $ dataToExpQ (const Nothing)) (parserToQ pred $ dataToPatQ (const Nothing))
-tr = QuasiQuoter (parserToQ term $ dataToExpQ (const Nothing)) (parserToQ term $ dataToPatQ (const Nothing))
+pr = QuasiQuoter (parserToExpQ pred) (parserToPatQ pred)
+tr = QuasiQuoter (parserToExpQ term) (parserToPatQ term)
 
-parserToQ p dataToQ src = do
-  ans <- runPT (spaces *> p <* eof) () "quote" src
+parserToExpQ p src = do
+  ans <- runPT (spcs *> p <* eof) () "quote" src
   trm <- either (fail . show) return ans
-  dataToQ trm
-  
+  dataToExpQ (const Nothing) trm
 
+parserToPatQ p src = do
+  ans <- runPT (spcs *> p <* eof) () "quote" src
+  trm <- either (fail . show) return ans
+  dataToPatQ (const Nothing) trm
