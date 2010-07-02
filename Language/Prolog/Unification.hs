@@ -1,7 +1,7 @@
 {-# LANGUAGE PatternGuards #-}
 module Language.Prolog.Unification (unify) where
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.State.Lazy
 import Prelude hiding (map, lookup)
 import Data.Map hiding (map)
 import Data.Maybe
@@ -20,10 +20,6 @@ lastSubs val = do
     v@(Val (Exists _)) -> return v
     (Val v@Any{})    -> if v == val then return (Val val) else lastSubs v 
     s                  -> return s
-    
-
-proven :: Pred -> [Term] -> Bool
-proven (App f prds) axiom = undefined
 
 unify :: (Monad m) => Pred -> Pred -> m Subs
 unify pr1 pr2 = execStateT (unifyPred pr1 pr2) empty 
@@ -31,7 +27,7 @@ unify pr1 pr2 = execStateT (unifyPred pr1 pr2) empty
 unifyPreds :: (Monad m) => [Pred] -> [Pred] -> UnifMachine m ()
 unifyPreds ps1 ps2 
            | length ps1 == length ps2 = zipWithM_ unifyPred ps1 ps2
-           | otherwise  = fail "arguments number didn't match"
+           | otherwise                = fail "arguments number didn't match"
 
 neverOccur :: (Monad m) => Val -> Pred -> UnifMachine m Bool
 neverOccur (Any x n) (App _ xs) = 
@@ -49,8 +45,9 @@ unifyPred (Val a) f@(App _ _)
           True -> do
             f' <- lastSubs a
             case f' of
-              (App _ _) -> when (f' /= f) (fail "unification failed")
-              (Val v)   -> unifyVal v a
+              (App _ _)               -> when (f' /= f) (fail "unification failed")
+              (Val v) | Exists e <- v -> when (f' /= (Val v)) (fail "unification failed")
+                      | otherwise     -> return ()
             modify $ insert a f
           False -> fail "occurs twice"
     | otherwise = fail "didn't match"
@@ -75,5 +72,10 @@ unifyVal an@Any{} ex@(Exists b) = do
 
 unifyVal e@(Exists _) a@Any{} = unifyVal a e
 unifyVal a b | a == b = return ()
-             | (a1@Any{}, a2@Any{}) <- (a, b) = modify (insert a1 (Val $ a2))
+             | (a1@Any{}, a2@Any{}) <- (a, b) = do
+                  ls <- lastSubs a1
+                  case ls of
+                    ap@(App _ _)   -> modify (insert a2 ap)
+                    an@(Val Any{}) -> modify (insert a1 (Val a2))
+                    an@(Val _)     -> modify (insert a2 an)
              | otherwise = fail "Constant name didn't match."
