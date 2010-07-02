@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes, FlexibleContexts #-}
-module Language.Prolog.Quoter (pr, tr, term, pred, program) where
+module Language.Prolog.Quoter (pr, tr, term, pred, program, spcs) where
 import Text.Parsec hiding ((<|>), many)
 import Language.Haskell.TH.Quote
 import Language.Prolog.DataTypes
@@ -9,7 +9,7 @@ import Language.Haskell.TH hiding (Pred)
 import Data.Generics
 
 spcs :: Monad m => ParsecT String u m ()
-spcs = spaces <|> (string "%" *> manyTill anyToken newline *> return ())
+spcs = (string "%" *> manyTill anyToken (lexeme newline) *> return ()) <|> spaces
 
 lexeme :: Monad m => ParsecT String u m a -> ParsecT String u m a 
 lexeme p = p <* spcs
@@ -38,7 +38,7 @@ list = between (symbol "[") (symbol "]") (
  )
 
 preds :: Monad m => ParsecT String u m [Pred]
-preds = pred `sepBy` (symbol "," )
+preds = lexeme (pred `sepBy` (symbol "," ))
 
 pred :: Monad m => ParsecT String u m Pred
 pred = try (App <$> ident <* (symbol "(") <*> preds <* (symbol ")"))
@@ -46,11 +46,12 @@ pred = try (App <$> ident <* (symbol "(") <*> preds <* (symbol ")"))
    <|> list
 
 term :: Monad m => ParsecT String u m Term
-term = (try ( (:-) <$> pred <* symbol ":-" <*> sepBy pred (symbol ",") )
-        <|> flip (:-) [] <$> pred) <* symbol "."
+term = try( flip (:-) [] <$> pred <* symbol ".")
+   <|> (:-) <$> pred <* symbol ":-" <*> sepBy pred (symbol ",") <* symbol "."
+ <?> "term"
 
 program :: Monad m => ParsecT String u m [Term]
-program = term `sepBy` spcs
+program = spcs *> (term `sepBy` spcs) <* eof
 
 pr = QuasiQuoter (parserToExpQ pred) (parserToPatQ pred)
 tr = QuasiQuoter (parserToExpQ term) (parserToPatQ term)

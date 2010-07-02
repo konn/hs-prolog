@@ -47,6 +47,10 @@ unifyPred (Val a) f@(App _ _)
         cond <- a `neverOccur` f
         case cond of
           True -> do
+            f' <- lastSubs a
+            case f' of
+              (App _ _) -> when (f' /= f) (fail "unification failed")
+              (Val v)   -> unifyVal v a
             modify $ insert a f
           False -> fail "occurs twice"
     | otherwise = fail "didn't match"
