@@ -1,17 +1,20 @@
 {-# LANGUAGE PackageImports, RankNTypes, FlexibleContexts #-}
 module Language.Prolog.Inference where
-import Control.Monad.RWS.Lazy hiding (Any, get, gets, modify, put)
+import Control.Monad.RWS.Lazy hiding (Any, get, gets, modify, put, sequence)
 import qualified Control.Monad.RWS.Lazy as RW
 import Data.Map hiding (map, filter, null)
-import Prelude hiding (map, lookup)
+import Prelude hiding (map, lookup, sequence)
 import Language.Prolog.Unification (unify)
 import Language.Prolog.DataTypes
 import Data.Maybe
 import Data.Generics
 import Data.List (sort, group)
 import Control.Applicative hiding (empty)
-import Data.Set hiding (map, null, union, filter, empty)
+import Data.Set hiding (map, null, union, filter, empty, fromList)
 import qualified Data.Set as S
+import Data.Traversable (sequence)
+
+import Debug.Trace
 
 map :: (Functor f) => (a -> b) -> f a -> f b
 map = fmap
@@ -33,11 +36,24 @@ modify f = do
   (a,b) <- RW.get
   RW.put (f a, b)
 
+put s = modify (const s)
+
 get = RW.gets fst
+gets :: (Subs -> a) -> InfMachine a 
 gets f = f <$> get
 
+debug :: (Monad m) => String -> m ()
+debug = flip trace $ return ()
+
 proven :: Pred -> [Term] -> [Subs]
-proven pred axiom = map (fst . fst) $ execRWST (prove pred) axiom (empty, S.fromList $ vars pred)
+--proven pred axiom = map (fst.fst) $ execRWST (prove pred) axiom (empty, S.fromList $ vars pred)
+proven pred axiom = map fst $ evalRWST st axiom (empty, S.fromList vs)
+  where
+    vs = vars pred
+    st = do
+      prove pred
+      dic <- get
+      return $ map(`rewriteBy` dic) $ filterWithKey (\k v -> k`elem`vs) dic
 
 merge :: (MonadState (Subs, a) m) => Subs -> m ()
 merge = modify . flip union
