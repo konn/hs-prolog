@@ -46,7 +46,7 @@ debug :: (Monad m) => String -> m ()
 debug = flip trace $ return ()
 
 proven :: Pred -> [Term] -> [Subs]
---proven pred axiom = map (fst.fst) $ execRWST (prove pred) axiom (empty, S.fromList $ vars pred)
+-- proven pred axiom = map (fst.fst) $ execRWST (prove pred) axiom (empty, S.fromList $ vars pred)
 proven pred axiom = map fst $ evalRWST st axiom (empty, S.fromList vs)
   where
     vs = vars pred
