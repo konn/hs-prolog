@@ -8,9 +8,8 @@ import Language.Prolog.Unification (unify)
 import Language.Prolog.DataTypes
 import Data.Maybe
 import Data.Generics
-import Data.List (sort, group, intersect)
+import Data.List (sort, group)
 import Control.Applicative hiding (empty)
-import Debug.Trace
 import Data.Set hiding (map, null, union, filter, empty)
 import qualified Data.Set as S
 
@@ -38,12 +37,10 @@ get = RW.gets fst
 gets f = f <$> get
 
 proven :: Pred -> [Term] -> [Subs]
-proven pred axiom = map (fst . fst) $ execRWST (prove pred) axiom (empty, S.empty)
+proven pred axiom = map (fst . fst) $ execRWST (prove pred) axiom (empty, S.fromList $ vars pred)
 
 merge :: (MonadState (Subs, a) m) => Subs -> m ()
 merge = modify . flip union
-
-debug a = trace a $ return ()
 
 prove :: Pred -> InfMachine ()
 prove pred = do
@@ -63,7 +60,7 @@ rewrite s = rewriteBy s <$> get
 vars :: forall a. (Data a) => a -> [Val]
 vars = map head . group . sort . listify (\a->case a of{Any{} -> True; _ -> False})
 
-rename :: forall a. (Data a) => a -> InfMachine a
+rename :: forall a. (Data a,Show a) => a -> InfMachine a
 rename from = do
   dups <- S.intersection (S.fromList $ vars from) <$> usedVals
   let transed = flip everywhere from $ mkT  $ \an ->
