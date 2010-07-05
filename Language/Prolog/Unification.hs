@@ -13,14 +13,6 @@ type UnifMachine = StateT Subs
 map :: Functor f => (a -> b) -> f a -> f b
 map = fmap
 
-lastSubs :: (Monad m) => Val -> UnifMachine m Pred
-lastSubs val = do
-  s <- gets (fromMaybe (Val $ val). lookup val)
-  case s of
-    v@(Val (Exists _)) -> return v
-    (Val v@Any{})    -> if v == val then return (Val val) else lastSubs v 
-    s                  -> return s
-
 unify :: (Monad m) => Pred -> Pred -> m Subs
 unify pr1 pr2 = execStateT (unifyPred pr1 pr2) empty 
 

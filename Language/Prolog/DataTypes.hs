@@ -1,10 +1,13 @@
-{-# LANGUAGE DeriveDataTypeable, FlexibleInstances, RankNTypes #-}
-module Language.Prolog.DataTypes(Term(..), Pred(..), Val(..), Subs(..), Func, Symbol, rewriteBy) where
+{-# LANGUAGE DeriveDataTypeable, FlexibleInstances, RankNTypes, FlexibleContexts #-}
+module Language.Prolog.DataTypes(
+    Term(..), Pred(..), Val(..), Subs(..), Func, Symbol, rewriteBy, lastSubs
+  ) where
 import Data.Generics
 import Data.Map (Map, lookup)
 import Data.List hiding (lookup)
 import Prelude hiding (lookup)
 import Control.Monad.State
+import Data.Maybe (fromMaybe)
 
 data Term = Pred :- [Pred] deriving (Eq, Ord, Typeable, Data)
 data Pred   = App Func [Pred] | Val Val deriving (Eq, Ord, Typeable, Data)
@@ -47,3 +50,11 @@ rewriteBy pred dic =
   let f v@(Val a@Any{}) = maybe v (`rewriteBy` dic) $ lookup a dic
       f a         = a
   in everywhere (mkT f) pred 
+
+lastSubs :: (MonadState Subs ms) => Val -> ms Pred
+lastSubs val = do
+  s <- gets (fromMaybe (Val $ val). lookup val)
+  case s of
+    v@(Val (Exists _)) -> return v
+    (Val v@Any{})    -> if v == val then return (Val val) else lastSubs v 
+    s                  -> return s
