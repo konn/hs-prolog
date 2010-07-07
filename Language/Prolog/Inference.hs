@@ -1,4 +1,4 @@
-{-# LANGUAGE PackageImports, RankNTypes, FlexibleContexts #-}
+{-# LANGUAGE PackageImports, RankNTypes, FlexibleContexts, NamedFieldPuns  #-}
 module Language.Prolog.Inference where
 import Control.Monad.RWS.Lazy hiding (Any, get, gets, modify, put, sequence)
 import qualified Control.Monad.RWS.Lazy as RW
@@ -20,34 +20,36 @@ map :: (Functor f) => (a -> b) -> f a -> f b
 map = fmap
 
 type InfMachine = RWST [Term] () InfState []
-type InfState = (Subs,Set Val)
+data InfState = IS{ subs :: Subs, used :: Set Val, level :: Int}
+createInfState = IS{subs = empty, used = S.empty, level = 0}
 
 newVar :: Val -> InfMachine Val
 newVar an@Any{} = do
-  (a, ss) <- RW.get
-  RW.put (a, S.insert an ss)
+  is@IS{used} <- RW.get
+  RW.put is{used=S.insert an used}
   return an
 newVar b = return b
 
 usedVals :: InfMachine (Set Val)
-usedVals = RW.gets snd
+usedVals = RW.gets used
 
 modify f = do
-  (a,b) <- RW.get
-  RW.put (f a, b)
+  is@IS{subs} <- RW.get
+  RW.put is{subs= f subs}
 
 put s = modify (const s)
 
-get = RW.gets fst
+get = RW.gets subs
 gets :: (Subs -> a) -> InfMachine a 
 gets f = f <$> get
 
-debug :: (Monad m) => String -> m ()
-debug = flip trace $ return ()
+debug :: (Show a) => String -> a -> InfMachine ()
+debug header a = do
+  c <- RW.gets level
+  trace (concat[replicate c '\t', header, ": ", show a]) $ return ()
 
 proven :: Pred -> [Term] -> [Subs]
--- proven pred axiom = map (fst.fst) $ execRWST (prove pred) axiom (empty, S.fromList $ vars pred)
-proven pred axiom = map fst $ evalRWST st axiom (empty, S.fromList vs)
+proven pred axiom = map fst $ evalRWST st axiom createInfState{used=S.fromList $ vars pred}
   where
     vs = vars pred
     st = do
@@ -55,7 +57,17 @@ proven pred axiom = map fst $ evalRWST st axiom (empty, S.fromList vs)
       dic <- get
       return $ map(`rewriteBy` dic) $ filterWithKey (\k v -> k`elem`vs) dic
 
-merge :: (MonadState (Subs, a) m) => Subs -> m ()
+incr :: InfMachine ()
+incr = do
+  is@IS{level} <- RW.get
+  RW.put is{level= level+1}
+
+decr :: InfMachine ()
+decr = do
+  is@IS{level} <- RW.get
+  RW.put is{level=level-1}
+
+merge :: (MonadState InfState m) => Subs -> m ()
 merge = modify . flip union
 
 prove :: Pred -> InfMachine ()
