@@ -28,9 +28,10 @@ unifyPred (Val a) f@(App _ _)
     | Any{} <- a = do
             f' <- lastSubs a
             case f' of
-              (App _ _)               -> when (f' /= f) (fail "unification failed")
-              (Val v) | Exists e <- v -> when (f' /= (Val v)) (fail "unification failed")
-                      | otherwise     -> return ()
+              (App _ _)                -> when (f' /= f) (fail "unification failed")
+              (Val v) | Exists  e <- v -> when (f' /= (Val v)) (fail "unification failed")
+                      | Integer i <- v -> when (f' /= (Val v)) (fail "unification failed")
+                      | otherwise      -> return ()
             modify $ insert a f
     | otherwise = fail "didn't match"
 
@@ -45,19 +46,18 @@ unifyPred a b = fail ("not supported: " ++ unwords [show a,show b])
 unifyVal :: (Monad m) => Val -> Val -> UnifMachine m ()
 unifyVal Wild _ = return ()
 unifyVal _ Wild = return ()
-unifyVal an@Any{} ex@(Exists b) = do
+unifyVal a1@Any{} a2@Any{} = do
+  ls <- lastSubs a1
+  case ls of
+    ap@(App _ _)   -> modify (insert a2 ap)
+    an@(Val Any{}) -> modify (insert a1 (Val a2))
+    an@(Val _)     -> modify (insert a2 an)
+unifyVal an@Any{} ex = do
   sub <- lastSubs an
   case sub of
     (Val a2@Any{})    -> modify (insert a2 (Val ex))
-    (Val (Exists b2)) -> when (b/=b2) (fail "Constant name didn't match.")
+    (Val ex2) -> when (ex/=ex2) (fail "Constant name didn't match.")
     (App _ _) -> fail ""
-
-unifyVal e@(Exists _) a@Any{} = unifyVal a e
+unifyVal e a@Any{} = unifyVal a e
 unifyVal a b | a == b = return ()
-             | (a1@Any{}, a2@Any{}) <- (a, b) = do
-                  ls <- lastSubs a1
-                  case ls of
-                    ap@(App _ _)   -> modify (insert a2 ap)
-                    an@(Val Any{}) -> modify (insert a1 (Val a2))
-                    an@(Val _)     -> modify (insert a2 an)
              | otherwise = fail "Constant name didn't match."

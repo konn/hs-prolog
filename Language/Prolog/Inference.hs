@@ -85,10 +85,16 @@ prims = fromList [(("not", -1), notPrim), (("\\=",2), neqPrim), (("is", 2), isPr
     isPrim [x,y] = do
       y'  <- rewrite y
       ans <- evalArith y'
-      subs <- lift ( (unify x) . Val . Exists . show $ ans )
+      subs <- lift ( (unify x) . Val . Integer $ ans )
       merge subs
 
 prove :: Pred -> InfMachine ()
+prove (Val (Exists sym)) = case sym of
+                             "true"  -> return ()
+                             "false" -> mzero
+                             "fail"  -> mzero
+                             _       -> fail "unko"
+prove (Val Any{}) = mzero
 prove pred | App a ps <- pred,
              (a, length ps) `member` prims = (prims ! (a, length ps)) ps
            | App a ps <- pred,

@@ -13,17 +13,19 @@ import Control.Monad.RWS hiding (Any)
 
 data Term = Pred :- [Pred] deriving (Eq, Ord, Typeable, Data)
 data Pred   = App Func [Pred] | Val Val deriving (Eq, Ord, Typeable, Data)
-data Val    = Exists Symbol | Any {name::Symbol, no::Int} | Wild
+data Val    = Exists Symbol | Any {name::Symbol, no::Int} | Integer Integer | Float Double | Wild
               deriving (Eq, Ord, Typeable, Data)
 type Subs   = Map Val Pred
 type Func   = String
 type Symbol = String
 
 instance Show Val where
-    show (Any a 0)  = a
-    show (Any a n)  = a ++ show n
-    show Wild       = "_"
-    show (Exists b) = b
+    show (Any a 0)   = a
+    show (Any a n)   = a ++ show n
+    show (Integer i) = show i
+    show (Float d)   = show d
+    show Wild        = "_"
+    show (Exists b)  = b
 
 instance Show Pred where
     show (Val a) = show a
