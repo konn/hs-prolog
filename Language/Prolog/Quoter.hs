@@ -16,8 +16,8 @@ lexeme p = p <* spcs
 symbol str = lexeme $ string str
 
 ident_tail, ident :: Monad m => ParsecT String u m String
-ident_tail = lexeme $ many (alphaNum<|>char '_')
-ident = ((++) <$> count 1 lower <*> ident_tail)
+ident_tail = lexeme $ many (oneOf "\\;/-=><=~^#@?$&!+*"<|>alphaNum)
+ident = ((++) <$> count 1 (oneOf "\\;/-><=~#$^@&!?+*"<|>lower) <*> ident_tail)
 
 variable, value, wild :: Monad m => ParsecT String u m Val
 variable = flip Any 0 <$> ((++) <$> count 1 upper <*> ident_tail)
@@ -33,8 +33,8 @@ list = between (symbol "[") (symbol "]") (
         elms <- preds
         symbol "|"
         tls <- pred
-        return $ foldr (\a b -> App "cons" [a,b]) tls elms)
-  <|> foldr (\a b->App "cons" [a,b]) (Val $ Exists "[]") <$> preds
+        return $ foldr (\a b -> App "." [a,b]) tls elms)
+  <|> foldr (\a b->App "." [a,b]) (Val $ Exists "[]") <$> preds
  )
 
 preds :: Monad m => ParsecT String u m [Pred]

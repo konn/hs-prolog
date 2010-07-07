@@ -8,6 +8,8 @@ import Data.List hiding (lookup)
 import Prelude hiding (lookup)
 import Control.Monad.State
 import Data.Maybe (fromMaybe)
+import Control.Applicative
+import Control.Monad.RWS hiding (Any)
 
 data Term = Pred :- [Pred] deriving (Eq, Ord, Typeable, Data)
 data Pred   = App Func [Pred] | Val Val deriving (Eq, Ord, Typeable, Data)
@@ -25,11 +27,11 @@ instance Show Val where
 
 instance Show Pred where
     show (Val a) = show a
-    show a@(App "cons" [x,y]) = "[" ++ (either id id $ showL a) ++ "]" 
+    show a@(App "." [x,y]) = "[" ++ (either id id $ showL a) ++ "]" 
       where
         showL :: Pred -> Either String String
-        showL (App "cons" [x, Val (Exists "[]")]) = Right $ show x
-        showL (App "cons" [x,y]) = let prf c a = concat [show x, c, a] 
+        showL (App "." [x, Val (Exists "[]")]) = Right $ show x
+        showL (App "." [x,y]) = let prf c a = concat [show x, c, a] 
                                    in  Right $ either (prf "|") (prf ",") $ showL y
         showL a                  = Left $ show a
     show (App sym args) = concat [sym, "(", intercalate "," (map show args), ")"]
@@ -58,3 +60,7 @@ lastSubs val = do
     v@(Val (Exists _)) -> return v
     (Val v@Any{})    -> if v == val then return (Val val) else lastSubs v 
     s                  -> return s
+
+instance (Monad m, Monoid w) => Applicative (RWST r w s m) where
+    pure  = return
+    (<*>) = ap

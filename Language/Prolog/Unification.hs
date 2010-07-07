@@ -21,27 +21,17 @@ unifyPreds ps1 ps2
            | length ps1 == length ps2 = zipWithM_ unifyPred ps1 ps2
            | otherwise                = fail "arguments number didn't match"
 
-neverOccur :: (Monad m) => Val -> Pred -> UnifMachine m Bool
-neverOccur (Any x n) (App _ xs) = 
-    liftM (foldl (&&) True) $ mapM (neverOccur (Any x n)) xs
-neverOccur Any{} _ = return True
-neverOccur Wild _ = return False
-
 unifyPred :: (Monad m) => Pred -> Pred -> UnifMachine m ()
 unifyPred (Val a) (Val b) = unifyVal a b
 unifyPred (Val a) f@(App _ _)
     | Wild  <- a = return ()
     | Any{} <- a = do
-        cond <- a `neverOccur` f
-        case cond of
-          True -> do
             f' <- lastSubs a
             case f' of
               (App _ _)               -> when (f' /= f) (fail "unification failed")
               (Val v) | Exists e <- v -> when (f' /= (Val v)) (fail "unification failed")
                       | otherwise     -> return ()
             modify $ insert a f
-          False -> fail "occurs twice"
     | otherwise = fail "didn't match"
 
 unifyPred b a@(Val Any{}) = unifyPred a b
